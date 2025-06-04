@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WhatsApp Chat UI</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; display: flex; flex-direction: column; height: 100vh; background-color: #f0f2f5; }
+        .chat-container { display: flex; flex-direction: column; width: 100%; max-width: 800px; margin: auto; background-color: #fff; box-shadow: 0 0 10px rgba(0,0,0,0.1); flex-grow: 1; }
+        .messages-area { flex-grow: 1; padding: 20px; overflow-y: auto; border-bottom: 1px solid #ddd; }
+        .message { margin-bottom: 15px; padding: 10px 15px; border-radius: 18px; max-width: 70%; clear: both; }
+        .message.in { background-color: #e9e9eb; color: #333; float: left; text-align: left; }
+        .message.out { background-color: #dcf8c6; color: #333; float: right; text-align: left; }
+        .message .sender { font-weight: bold; font-size: 0.8em; margin-bottom: 3px; color: #555; }
+        .message .timestamp { font-size: 0.7em; color: #999; display: block; margin-top: 4px; }
+        .input-area { display: flex; padding: 15px; border-top: 1px solid #ddd; background-color: #f0f2f5;}
+        .input-area input[type="text"] { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; margin-right: 10px; }
+        .input-area button { padding: 10px 20px; background-color: #128C7E; color: white; border: none; border-radius: 20px; cursor: pointer; }
+        .input-area button:hover { background-color: #075E54; }
+        .recipient-input { padding: 10px; border-bottom: 1px solid #eee; }
+        .recipient-input input { width: calc(100% - 22px); padding: 8px; }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="recipient-input">
+            <label for="recipient_id">Recipient WhatsApp ID (e.g., 91XXXXXXXXXX):</label>
+            <input type="text" id="recipient_id" placeholder="Enter recipient's WhatsApp number with country code">
+        </div>
+        <div class="messages-area" id="messagesArea">
+            </div>
+        <div class="input-area">
+            <input type="text" id="messageInput" placeholder="Type a message...">
+            <button onclick="sendMessage()">Send</button>
+        </div>
+    </div>
+
+    <script>
+        const messagesArea = document.getElementById('messagesArea');
+        const messageInput = document.getElementById('messageInput');
+        const recipientIdInput = document.getElementById('recipient_id');
+
+        function formatTimestamp(isoTimestamp) {
+            if (!isoTimestamp) return '';
+            const date = new Date(isoTimestamp);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function displayMessage(msg) {
+            const messageDiv = document.createElement('div');
+            messageDiv.classList.add('message', msg.direction);
+
+            const senderDiv = document.createElement('div');
+            senderDiv.classList.add('sender');
+            senderDiv.textContent = msg.direction === 'in' ? msg.sender : 'You'; // If 'out', it's from "You" (your business)
+            messageDiv.appendChild(senderDiv);
+
+            const textP = document.createElement('p');
+            textP.textContent = msg.text;
+            messageDiv.appendChild(textP);
+
+            const timestampDiv = document.createElement('div');
+            timestampDiv.classList.add('timestamp');
+            timestampDiv.textContent = formatTimestamp(msg.timestamp) + (msg.status ? ` (${msg.status})` : '');
+            messageDiv.appendChild(timestampDiv);
+
+            messagesArea.appendChild(messageDiv);
+            messagesArea.scrollTop = messagesArea.scrollHeight; // Auto-scroll to bottom
+        }
+
+        async function fetchMessages() {
+            try {
+                const response = await fetch('/get_messages');
+                if (!response.ok) {
+                    console.error('Failed to fetch messages:', response.statusText);
+                    return;
+                }
+                const messages = await response.json();
+                messagesArea.innerHTML = ''; // Clear existing messages before repopulating
+                messages.forEach(displayMessage);
+            } catch (error) {
+                console.error('Error fetching messages:', error);
+            }
+        }
+
+        async function sendMessage() {
+            const text = messageInput.value.trim();
+            const recipientId = recipientIdInput.value.trim();
+
+            if (!text || !recipientId) {
+                alert('Please enter recipient ID and a message.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/send_message', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ recipient_wa_id: recipientId, message_text: text })
+                });
+                const result = await response.json();
+
+                if (result.status === 'success') {
+                    // Optimistically display sent message (or wait for webhook confirmation for "sent" status)
+                    // displayMessage({ sender: 'You', text: text, direction: 'out', timestamp: new Date().toISOString(), status: 'sending' });
+                    messageInput.value = '';
+                    // Fetch messages again to include the new one (and potentially its WA ID and initial status)
+                    fetchMessages();
+                } else {
+                    alert('Error sending message: ' + result.message);
+                }
+            } catch (error) {
+                console.error('Error sending message:', error);
+                alert('An error occurred while sending the message.');
+            }
+        }
+
+        // Fetch messages periodically and on load
+        fetchMessages();
+        setInterval(fetchMessages, 5000); // Refresh every 5 seconds (consider WebSockets for real-time)
+    </script>
+</body>
+</html>
