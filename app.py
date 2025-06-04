@@ -155,6 +155,7 @@ if __name__ == '__main__':
     else:
         print("WhatsApp credentials seem to be loaded.")
         print(f"Webhook will be available at /webhook")
-        port = int(os.getenv('FLASK_PORT', 5001))
+        port = int(os.environ.get("PORT", 5000))
         print(f"UI will be available at http://127.0.0.1:{port}/")
-    app.run(debug=os.getenv('FLASK_DEBUG', 'False').lower() == 'true', host='127.0.0.1', port=5001)
+    app.run(debug=os.getenv('FLASK_DEBUG', 'False').lower() == 'true', host='0.0.0.0', port=port)
+
